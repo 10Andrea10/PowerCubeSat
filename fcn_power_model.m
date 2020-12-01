@@ -1,4 +1,4 @@
-function results = fcn_power_model(mission, orbit, panel, attitude)
+function results = fcn_power_model(mission, orbit, panel, attitude, activations)
 %% Debug data
 % clean up workspace clear variables; close all; clc;
 
@@ -10,7 +10,7 @@ function results = fcn_power_model(mission, orbit, panel, attitude)
 
 
 %% Inputs
-% ideal power output performance per unit area [W/m^2]
+% ideal power output performance per unit area [W/m^2] 12-2: calcola la potenza ideale della cella moltiplicando la potenza solare per l’efficienza di conversione. Poi calcola la potenza a inizio vita (BOL), la life degradation e la potenza a fine vita (EOL) con le formule li scritte
 powerIdeal = mission.solarConstant * mission.efficiency;
 
 % beginning of life power output per unit area (not including cosine loss)
@@ -47,7 +47,7 @@ results.powerTotal = zeros(orbit.numSteps,1);
 % TODO(results.powerAvg and results.powerAvgTime size from estimated number
 % of orbits)
 
-% set up orbit number variables
+% set up orbit number variables 50-64 calcola quante volte far girare il satellite attorno alla Terra, in base agli input dati nella prima schermata
 orbitNum = 1;
 orbitEnd = orbit.reportTime(1) + seconds(orbit.orbitalPeriod);
 orbitStartStep = 1;
@@ -61,7 +61,7 @@ results.orbitStepLength = i;
 % start waitbar
 prog = waitbar(0, 'Start...');
 
-% radius of earth for eclipse calculations
+% radius of earth for eclipse calculations 65 inserisce raggio terrestre
 rEarth = 6371e3;
 
 
@@ -75,7 +75,7 @@ for i = 1:orbit.numSteps
     
     
     %% Check if in eclipse
-    % solve equation of intersection https://math.stackexchange.com/questions/1939423/calculate-if-vector-intersects-sphere
+    % solve equation of intersection https://math.stackexchange.com/questions/1939423/calculate-if-vector-intersects-sphere 77-86 condizione di annullamento della potenza se cubesat dietro la Terra
     a = dot(orbit.satSunUnit(i,:), orbit.satSunUnit(i,:));
     b = 2 * dot(orbit.satSunUnit(i,:), orbit.satPos(i,:));
     c = dot(orbit.satPos(i,:), orbit.satPos(i,:)) - rEarth^2;
@@ -86,7 +86,7 @@ for i = 1:orbit.numSteps
     if r(1) > 0 && r(2) > 0 && imag(r(1)) == 0 && imag(r(2)) == 0
         % in eclipse so don't perform calculations
     else
-        % not in eclipse so do perform calculations
+        % not in eclipse so do perform calculations 90-106 calcola il cambiamento di base per avere il Sole in coordinate centrate nel satellite invece che nella Terra. Earth Centered System (ECI) -> Satellite Centered System (SCS). Input attitude.sat.Positive
         %% Sun vector unit normal in satellite geoemetry basis
         % need the sun vector in the body centred and alligned
         % coordinate system, the satellite body is centred on the
@@ -107,7 +107,7 @@ for i = 1:orbit.numSteps
         
         
         %% Change satellite geometry basis to sun pov
-        % change the basis of the satellite panel coordinates to be
+        % change the basis of the satellite panel coordinates to be 109-136 modifica la geometria del satellite, allineando l’asse z del SCS al sun vector
         % alligned to Sun's 'point of view'
         
         % the new z axis is the sun vector, the x and y orientation
@@ -137,7 +137,7 @@ for i = 1:orbit.numSteps
         
         
         %% Define polygons
-        % define polygons from new points, these are the panels as the
+        % define polygons from new points, these are the panels as the 137-155 proietta i poligoni dei pannelli (facce e deployable) nel sistema di riferimento con z allineato al sun vector. Questo è il modo in cui il sole vede i pannelli, quindi qui sta tenendo conto dell’angolo Teta di cui sopra (!!)
         % sun views them, polygons allow clipping and area calculations
         % which are equivelent to cosine loss factor
         
@@ -156,7 +156,7 @@ for i = 1:orbit.numSteps
         
         
         %% Find average z-level of each polygon
-        % average z level shows which panels are infront of each other
+        % average z level shows which panels are infront of each other 158-171 calcola la z-media (??) quindi rispetto al punto di vista solare sovrappone i poligoni dei pannelli gli uni con gli altri, in modo da capire quale fa ombra a quale. 
         % with resepect to the Sun's 'point of view', allowing
         % clipping.
         
@@ -172,7 +172,7 @@ for i = 1:orbit.numSteps
         
         
         %% Clip each polygon with every other polygon
-        % use average z level to clip polygons, leaving only visible
+        % use average z level to clip polygons, leaving only visible 174-193 usando la z-media sovrappone un pannello all’altro ed estrae le superfici attive, cioè quelle investite dal Sole. Solo loro opereranno la conversione
         % area of visible polygons
         
         % clip all polygons
@@ -194,7 +194,7 @@ for i = 1:orbit.numSteps
         
         
         %% Power calcualtions
-        % use the clipped polygons to get panel areas, these include
+        % use the clipped polygons to get panel areas, these include 196-219 calcola la potenza prodotta per pannello moltiplicando la potenza ideale a inizio vita per la superficie effettivamente attiva. Praticamente si moltiplica quanta potenza viene convertita dal rendimento della cella per l’area che effettivamente è attiva. Si passa da W/m^2 a W. Ci saranno altri fattori di rendimento da considerare, fra cui la temperatura molto importante (!!)  (non sappiamo come fare ancora, chiedere TCS)
         % cosine losses due to the geometry transformations
         
         % if not in an eclipse, perform power calculations body mounted
@@ -202,6 +202,9 @@ for i = 1:orbit.numSteps
         % need to be able to set this in the GUI and the have a check
         % if a panel is 'active')
         for j = 1:4
+            if(activations(j) == 0)
+                continue
+            end
             % power for each panel at each timestep
             results.powerPanel(i, j) = powerEOL * area(panel{j}.polygon(i)) / 1e6;
             % total power for the satellite at each timestep
@@ -221,7 +224,7 @@ for i = 1:orbit.numSteps
     
     
     %% Orbit averaged power calculations
-    % for orbit averaged power results, check if at the end of an orbit
+    % for orbit averaged power results, check if at the end of an orbit 224-239 calcola la potenza mediata sull’orbita. Da capire se può farlo su più orbite o addirittura su tutta la missione. Dove usa la LifeDegradation (????)
     if orbit.reportTime(i) > orbitEnd
         % set orbit end step
         orbitEndStep = i;
