@@ -198,10 +198,8 @@ for i = 1:orbit.numSteps
         % cosine losses due to the geometry transformations
         
         % if not in an eclipse, perform power calculations body mounted
-        % panels TODO(currently assumes Z faces have no solar panels,
-        % need to be able to set this in the GUI and the have a check
-        % if a panel is 'active')
-        for j = 1:4
+        % panels are active only if activations tells so. activations order: PosX,NegX,PosY,NegY,PosZ,NegZ 
+        for j = 1:6
             if(activations(j) == 0)
                 continue
             end
